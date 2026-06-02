@@ -1,0 +1,1040 @@
+asyncapi: 2.6.0
+info:
+  title: dYdX v4 Indexer WebSocket API
+  version: '4.0.0'
+  description: |
+    AsyncAPI definition for the dYdX v4 Indexer WebSocket API. The Indexer
+    exposes a single WebSocket endpoint that multiplexes subscriptions across
+    several named channels (markets, trades, orderbook, subaccounts, candles,
+    parent subaccounts, and block height).
+
+    Clients subscribe by sending a JSON envelope of the form:
+
+        { "type": "subscribe", "channel": "<channel>", "id": "<id>", "batched": <bool> }
+
+    Servers respond with an initial `subscribed` envelope carrying a snapshot
+    of `contents`, followed by `channel_data` (or `channel_batch_data` when
+    `batched: true`) envelopes carrying incremental updates. Clients may send
+    `{ "type": "unsubscribe", "channel": "<channel>", "id": "<id>" }` at any
+    time.
+
+    Source: https://docs.dydx.xyz/indexer-client/websockets
+  contact:
+    name: dYdX Trading Inc.
+    url: https://docs.dydx.xyz/
+  license:
+    name: AGPL-3.0
+    url: https://github.com/dydxprotocol/v4-chain/blob/main/LICENSE
+  x-source-docs:
+    - https://docs.dydx.xyz/indexer-client/websockets
+    - https://docs.dydx.xyz/interaction/endpoints
+
+defaultContentType: application/json
+
+servers:
+  mainnet:
+    url: indexer.dydx.trade/v4/ws
+    protocol: wss
+    description: dYdX v4 Indexer WebSocket (mainnet)
+  testnet:
+    url: indexer.v4testnet.dydx.exchange/v4/ws
+    protocol: wss
+    description: dYdX v4 Indexer WebSocket (testnet)
+
+channels:
+  v4_markets:
+    description: |
+      Streams perpetual market parameters and oracle prices for every market on
+      the exchange. No `id` is required when subscribing.
+    subscribe:
+      summary: Receive market snapshots and updates.
+      operationId: receiveMarkets
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedMarkets'
+          - $ref: '#/components/messages/ChannelDataMarkets'
+          - $ref: '#/components/messages/ChannelBatchDataMarkets'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the markets channel.
+      operationId: sendMarketsSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeMarkets'
+          - $ref: '#/components/messages/UnsubscribeMarkets'
+
+  v4_trades:
+    description: |
+      Streams executed trades for a single perpetual market. The `id` of the
+      subscription is the market ticker (e.g. `BTC-USD`).
+    subscribe:
+      summary: Receive trade snapshots and incremental fills.
+      operationId: receiveTrades
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedTrades'
+          - $ref: '#/components/messages/ChannelDataTrades'
+          - $ref: '#/components/messages/ChannelBatchDataTrades'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the trades channel.
+      operationId: sendTradesSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeMarketScoped'
+          - $ref: '#/components/messages/UnsubscribeMarketScoped'
+
+  v4_orderbook:
+    description: |
+      Streams orderbook snapshots and L2 updates (bids/asks) for a single
+      perpetual market. The `id` of the subscription is the market ticker
+      (e.g. `BTC-USD`).
+    subscribe:
+      summary: Receive orderbook snapshot and price-level updates.
+      operationId: receiveOrderbook
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedOrderbook'
+          - $ref: '#/components/messages/ChannelDataOrderbook'
+          - $ref: '#/components/messages/ChannelBatchDataOrderbook'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the orderbook channel.
+      operationId: sendOrderbookSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeMarketScoped'
+          - $ref: '#/components/messages/UnsubscribeMarketScoped'
+
+  v4_subaccounts:
+    description: |
+      Streams subaccount state (positions, orders, fills, transfers) for a
+      single address + subaccount number. The subscription `id` is
+      `<address>/<subaccount_number>` (e.g. `dydx1.../0`).
+    subscribe:
+      summary: Receive subaccount snapshots and incremental updates.
+      operationId: receiveSubaccounts
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedSubaccounts'
+          - $ref: '#/components/messages/ChannelDataSubaccounts'
+          - $ref: '#/components/messages/ChannelBatchDataSubaccounts'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the subaccounts channel.
+      operationId: sendSubaccountsSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeSubaccounts'
+          - $ref: '#/components/messages/UnsubscribeSubaccounts'
+
+  v4_candles:
+    description: |
+      Streams OHLCV candle snapshots and updates. The subscription `id` is
+      `<ticker>/<resolution>` (e.g. `BTC-USD/1MIN`). Supported resolutions
+      include `1MIN`, `5MINS`, `15MINS`, `30MINS`, `1HOUR`, `4HOURS`, `1DAY`.
+    subscribe:
+      summary: Receive candle snapshots and updates.
+      operationId: receiveCandles
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedCandles'
+          - $ref: '#/components/messages/ChannelDataCandles'
+          - $ref: '#/components/messages/ChannelBatchDataCandles'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the candles channel.
+      operationId: sendCandlesSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeCandles'
+          - $ref: '#/components/messages/UnsubscribeCandles'
+
+  v4_parent_subaccounts:
+    description: |
+      Streams parent-subaccount state (rolling up child subaccounts 0-127 used
+      for isolated positions). The subscription `id` is
+      `<address>/<parent_subaccount_number>`.
+    subscribe:
+      summary: Receive parent-subaccount snapshots and incremental updates.
+      operationId: receiveParentSubaccounts
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedParentSubaccounts'
+          - $ref: '#/components/messages/ChannelDataParentSubaccounts'
+          - $ref: '#/components/messages/ChannelBatchDataParentSubaccounts'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the parent subaccounts channel.
+      operationId: sendParentSubaccountsSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeSubaccounts'
+          - $ref: '#/components/messages/UnsubscribeSubaccounts'
+
+  v4_block_height:
+    description: |
+      Streams the current dYdX chain block height. No `id` is required when
+      subscribing.
+    subscribe:
+      summary: Receive block-height snapshots and updates.
+      operationId: receiveBlockHeight
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedBlockHeight'
+          - $ref: '#/components/messages/ChannelDataBlockHeight'
+          - $ref: '#/components/messages/Unsubscribed'
+    publish:
+      summary: Send subscribe/unsubscribe envelopes for the block_height channel.
+      operationId: sendBlockHeightSubscription
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeBlockHeight'
+          - $ref: '#/components/messages/UnsubscribeBlockHeight'
+
+components:
+  messages:
+    # ---------- Subscribe / Unsubscribe envelopes (client -> server) ----------
+
+    SubscribeMarkets:
+      name: SubscribeMarkets
+      title: Subscribe to v4_markets
+      summary: Subscribe to all market parameter and oracle-price updates.
+      payload:
+        $ref: '#/components/schemas/SubscribeNoId'
+      examples:
+        - payload:
+            type: subscribe
+            channel: v4_markets
+            batched: false
+
+    UnsubscribeMarkets:
+      name: UnsubscribeMarkets
+      title: Unsubscribe from v4_markets
+      payload:
+        $ref: '#/components/schemas/UnsubscribeNoId'
+      examples:
+        - payload:
+            type: unsubscribe
+            channel: v4_markets
+
+    SubscribeMarketScoped:
+      name: SubscribeMarketScoped
+      title: Subscribe to a single market (trades or orderbook)
+      payload:
+        $ref: '#/components/schemas/SubscribeWithId'
+      examples:
+        - payload:
+            type: subscribe
+            channel: v4_trades
+            id: BTC-USD
+            batched: false
+
+    UnsubscribeMarketScoped:
+      name: UnsubscribeMarketScoped
+      title: Unsubscribe from a single market (trades or orderbook)
+      payload:
+        $ref: '#/components/schemas/UnsubscribeWithId'
+      examples:
+        - payload:
+            type: unsubscribe
+            channel: v4_trades
+            id: BTC-USD
+
+    SubscribeSubaccounts:
+      name: SubscribeSubaccounts
+      title: Subscribe to v4_subaccounts or v4_parent_subaccounts
+      payload:
+        $ref: '#/components/schemas/SubscribeWithId'
+      examples:
+        - payload:
+            type: subscribe
+            channel: v4_subaccounts
+            id: dydx14zzueazeh0hj67cghhf9jypslcf9sh2n5k6art/0
+
+    UnsubscribeSubaccounts:
+      name: UnsubscribeSubaccounts
+      title: Unsubscribe from v4_subaccounts or v4_parent_subaccounts
+      payload:
+        $ref: '#/components/schemas/UnsubscribeWithId'
+
+    SubscribeCandles:
+      name: SubscribeCandles
+      title: Subscribe to v4_candles
+      payload:
+        $ref: '#/components/schemas/SubscribeWithId'
+      examples:
+        - payload:
+            type: subscribe
+            channel: v4_candles
+            id: BTC-USD/1MIN
+            batched: false
+
+    UnsubscribeCandles:
+      name: UnsubscribeCandles
+      title: Unsubscribe from v4_candles
+      payload:
+        $ref: '#/components/schemas/UnsubscribeWithId'
+
+    SubscribeBlockHeight:
+      name: SubscribeBlockHeight
+      title: Subscribe to v4_block_height
+      payload:
+        $ref: '#/components/schemas/SubscribeNoId'
+      examples:
+        - payload:
+            type: subscribe
+            channel: v4_block_height
+
+    UnsubscribeBlockHeight:
+      name: UnsubscribeBlockHeight
+      title: Unsubscribe from v4_block_height
+      payload:
+        $ref: '#/components/schemas/UnsubscribeNoId'
+
+    # ---------- Server-sent envelopes ----------
+
+    Unsubscribed:
+      name: Unsubscribed
+      title: Unsubscribed acknowledgement
+      payload:
+        $ref: '#/components/schemas/UnsubscribedEnvelope'
+
+    SubscribedMarkets:
+      name: SubscribedMarkets
+      title: Initial v4_markets snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_markets }
+              contents:
+                $ref: '#/components/schemas/MarketsInitialMessage'
+
+    ChannelDataMarkets:
+      name: ChannelDataMarkets
+      title: v4_markets update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_markets }
+              contents:
+                $ref: '#/components/schemas/MarketsUpdateMessage'
+
+    ChannelBatchDataMarkets:
+      name: ChannelBatchDataMarkets
+      title: v4_markets batched updates
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelBatchDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_markets }
+              contents:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MarketsUpdateMessage'
+
+    SubscribedTrades:
+      name: SubscribedTrades
+      title: Initial v4_trades snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_trades }
+              id: { type: string, description: 'Market ticker, e.g. BTC-USD' }
+              contents:
+                $ref: '#/components/schemas/TradesInitialMessage'
+
+    ChannelDataTrades:
+      name: ChannelDataTrades
+      title: v4_trades update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_trades }
+              id: { type: string }
+              contents:
+                $ref: '#/components/schemas/TradesUpdateMessage'
+
+    ChannelBatchDataTrades:
+      name: ChannelBatchDataTrades
+      title: v4_trades batched updates
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelBatchDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_trades }
+              id: { type: string }
+              contents:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TradesUpdateMessage'
+
+    SubscribedOrderbook:
+      name: SubscribedOrderbook
+      title: Initial v4_orderbook snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_orderbook }
+              id: { type: string }
+              contents:
+                $ref: '#/components/schemas/OrderbookInitialMessage'
+
+    ChannelDataOrderbook:
+      name: ChannelDataOrderbook
+      title: v4_orderbook update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_orderbook }
+              id: { type: string }
+              contents:
+                $ref: '#/components/schemas/OrderbookUpdateMessage'
+
+    ChannelBatchDataOrderbook:
+      name: ChannelBatchDataOrderbook
+      title: v4_orderbook batched updates
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelBatchDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_orderbook }
+              id: { type: string }
+              contents:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderbookUpdateMessage'
+
+    SubscribedSubaccounts:
+      name: SubscribedSubaccounts
+      title: Initial v4_subaccounts snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_subaccounts }
+              id:
+                type: string
+                description: '<address>/<subaccount_number>'
+              contents:
+                $ref: '#/components/schemas/SubaccountsInitialMessage'
+
+    ChannelDataSubaccounts:
+      name: ChannelDataSubaccounts
+      title: v4_subaccounts update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_subaccounts }
+              id: { type: string }
+              contents:
+                $ref: '#/components/schemas/SubaccountsUpdateMessage'
+
+    ChannelBatchDataSubaccounts:
+      name: ChannelBatchDataSubaccounts
+      title: v4_subaccounts batched updates
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelBatchDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_subaccounts }
+              id: { type: string }
+              contents:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubaccountsUpdateMessage'
+
+    SubscribedCandles:
+      name: SubscribedCandles
+      title: Initial v4_candles snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_candles }
+              id:
+                type: string
+                description: '<ticker>/<resolution>'
+              contents:
+                $ref: '#/components/schemas/CandlesInitialMessage'
+
+    ChannelDataCandles:
+      name: ChannelDataCandles
+      title: v4_candles update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_candles }
+              id: { type: string }
+              contents:
+                $ref: '#/components/schemas/CandlesUpdateMessage'
+
+    ChannelBatchDataCandles:
+      name: ChannelBatchDataCandles
+      title: v4_candles batched updates
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelBatchDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_candles }
+              id: { type: string }
+              contents:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CandlesUpdateMessage'
+
+    SubscribedParentSubaccounts:
+      name: SubscribedParentSubaccounts
+      title: Initial v4_parent_subaccounts snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_parent_subaccounts }
+              id:
+                type: string
+                description: '<address>/<parent_subaccount_number>'
+              contents:
+                $ref: '#/components/schemas/ParentSubaccountsInitialMessage'
+
+    ChannelDataParentSubaccounts:
+      name: ChannelDataParentSubaccounts
+      title: v4_parent_subaccounts update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_parent_subaccounts }
+              id: { type: string }
+              contents:
+                $ref: '#/components/schemas/ParentSubaccountsUpdateMessage'
+
+    ChannelBatchDataParentSubaccounts:
+      name: ChannelBatchDataParentSubaccounts
+      title: v4_parent_subaccounts batched updates
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelBatchDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_parent_subaccounts }
+              id: { type: string }
+              contents:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParentSubaccountsUpdateMessage'
+
+    SubscribedBlockHeight:
+      name: SubscribedBlockHeight
+      title: Initial v4_block_height snapshot
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/SubscribedEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_block_height }
+              contents:
+                $ref: '#/components/schemas/HeightResponse'
+
+    ChannelDataBlockHeight:
+      name: ChannelDataBlockHeight
+      title: v4_block_height update
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/ChannelDataEnvelopeBase'
+          - type: object
+            properties:
+              channel: { const: v4_block_height }
+              contents:
+                $ref: '#/components/schemas/HeightResponse'
+
+  schemas:
+    # ---------- Client -> server envelopes ----------
+
+    SubscribeWithId:
+      type: object
+      required: [type, channel, id]
+      properties:
+        type:
+          type: string
+          const: subscribe
+        channel:
+          type: string
+          description: Channel name (e.g. v4_trades).
+        id:
+          type: string
+          description: Channel-specific subscription identifier.
+        batched:
+          type: boolean
+          default: false
+          description: |
+            When true, updates may be delivered as `channel_batch_data` arrays
+            instead of one `channel_data` per event.
+
+    SubscribeNoId:
+      type: object
+      required: [type, channel]
+      properties:
+        type:
+          type: string
+          const: subscribe
+        channel:
+          type: string
+        batched:
+          type: boolean
+          default: false
+
+    UnsubscribeWithId:
+      type: object
+      required: [type, channel, id]
+      properties:
+        type: { type: string, const: unsubscribe }
+        channel: { type: string }
+        id: { type: string }
+
+    UnsubscribeNoId:
+      type: object
+      required: [type, channel]
+      properties:
+        type: { type: string, const: unsubscribe }
+        channel: { type: string }
+
+    # ---------- Server -> client envelopes ----------
+
+    SubscribedEnvelopeBase:
+      type: object
+      required: [type, connection_id, message_id, channel, contents]
+      properties:
+        type:
+          type: string
+          const: subscribed
+        connection_id:
+          type: string
+          description: Unique connection identifier issued by the server.
+        message_id:
+          type: integer
+          description: Monotonically increasing message sequence.
+        channel:
+          type: string
+        id:
+          type: string
+        contents:
+          description: Channel-specific initial snapshot payload.
+
+    ChannelDataEnvelopeBase:
+      type: object
+      required: [type, connection_id, message_id, channel, version, contents]
+      properties:
+        type:
+          type: string
+          const: channel_data
+        connection_id:
+          type: string
+        message_id:
+          type: integer
+        channel:
+          type: string
+        id:
+          type: string
+        version:
+          type: string
+          description: Schema version of the payload.
+        contents:
+          description: Channel-specific incremental update payload.
+
+    ChannelBatchDataEnvelopeBase:
+      type: object
+      required: [type, connection_id, message_id, channel, version, contents]
+      properties:
+        type:
+          type: string
+          const: channel_batch_data
+        connection_id: { type: string }
+        message_id: { type: integer }
+        channel: { type: string }
+        id: { type: string }
+        version: { type: string }
+        contents:
+          type: array
+          description: Batched array of channel-specific updates.
+
+    UnsubscribedEnvelope:
+      type: object
+      required: [type, connection_id, message_id, channel]
+      properties:
+        type:
+          type: string
+          const: unsubscribed
+        connection_id: { type: string }
+        message_id: { type: integer }
+        channel: { type: string }
+        id: { type: string }
+
+    # ---------- Channel payload schemas ----------
+    # Field structures below are documented at
+    # https://docs.dydx.xyz/types/*. They are intentionally permissive
+    # (additionalProperties allowed) because the Indexer types referenced
+    # therein (PerpetualMarket, TradeResponseObject, OrderbookResponsePriceLevel,
+    # SubaccountMessageObject, CandleResponseObject, ParentSubaccountResponseObject,
+    # HeightResponse) carry many fields and continue to evolve.
+
+    MarketsInitialMessage:
+      type: object
+      description: Initial message received on the `v4_markets` channel.
+      properties:
+        markets:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PerpetualMarket'
+          description: Ticker -> PerpetualMarket map.
+      additionalProperties: true
+
+    MarketsUpdateMessage:
+      type: object
+      description: Update message on the `v4_markets` channel.
+      properties:
+        trading:
+          type: object
+          additionalProperties: true
+          description: Ticker -> partial PerpetualMarket trading-parameter update.
+        oraclePrices:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              oraclePrice: { type: string }
+              effectiveAt: { type: string, format: date-time }
+              effectiveAtHeight: { type: string }
+              marketId: { type: integer }
+            additionalProperties: true
+      additionalProperties: true
+
+    TradesInitialMessage:
+      type: object
+      description: Initial message received on the `v4_trades` channel.
+      properties:
+        trades:
+          type: array
+          items:
+            $ref: '#/components/schemas/TradeResponseObject'
+      additionalProperties: true
+
+    TradesUpdateMessage:
+      type: object
+      description: Update message on the `v4_trades` channel.
+      properties:
+        trades:
+          type: array
+          items:
+            $ref: '#/components/schemas/TradeResponseObject'
+      additionalProperties: true
+
+    OrderbookInitialMessage:
+      type: object
+      description: Initial message received on the `v4_orderbook` channel.
+      properties:
+        bids:
+          type: array
+          items: { $ref: '#/components/schemas/OrderbookResponsePriceLevel' }
+        asks:
+          type: array
+          items: { $ref: '#/components/schemas/OrderbookResponsePriceLevel' }
+      additionalProperties: true
+
+    OrderbookUpdateMessage:
+      type: object
+      description: Update message on the `v4_orderbook` channel.
+      properties:
+        bids:
+          type: array
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items: { type: string }
+            description: '[price, size] tuple. Size "0" means level removed.'
+        asks:
+          type: array
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items: { type: string }
+      additionalProperties: true
+
+    SubaccountsInitialMessage:
+      type: object
+      description: Initial message received on the `v4_subaccounts` channel.
+      properties:
+        subaccount:
+          $ref: '#/components/schemas/SubaccountMessageObject'
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMessageObject' }
+        blockHeight:
+          $ref: '#/components/schemas/Height'
+      additionalProperties: true
+
+    SubaccountsUpdateMessage:
+      type: object
+      description: Update message on the `v4_subaccounts` channel.
+      properties:
+        perpetualPositions:
+          type: array
+          items: { type: object, additionalProperties: true }
+        assetPositions:
+          type: array
+          items: { type: object, additionalProperties: true }
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMessageObject' }
+        fills:
+          type: array
+          items: { type: object, additionalProperties: true }
+        transfers:
+          type: array
+          items: { type: object, additionalProperties: true }
+        tradingRewards:
+          type: array
+          items: { type: object, additionalProperties: true }
+        blockHeight:
+          $ref: '#/components/schemas/Height'
+      additionalProperties: true
+
+    CandlesInitialMessage:
+      type: object
+      description: Initial message received on the `v4_candles` channel.
+      properties:
+        candles:
+          type: array
+          items: { $ref: '#/components/schemas/CandleResponseObject' }
+      additionalProperties: true
+
+    CandlesUpdateMessage:
+      type: object
+      description: Update message on the `v4_candles` channel.
+      allOf:
+        - $ref: '#/components/schemas/CandleResponseObject'
+
+    ParentSubaccountsInitialMessage:
+      type: object
+      description: Initial message received on the `v4_parent_subaccounts` channel.
+      properties:
+        subaccount:
+          $ref: '#/components/schemas/ParentSubaccountResponseObject'
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMessageObject' }
+        block_height:
+          $ref: '#/components/schemas/Height'
+      additionalProperties: true
+
+    ParentSubaccountsUpdateMessage:
+      type: object
+      description: Update message on the `v4_parent_subaccounts` channel.
+      properties:
+        perpetualPositions:
+          type: array
+          items: { type: object, additionalProperties: true }
+        assetPositions:
+          type: array
+          items: { type: object, additionalProperties: true }
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/OrderMessageObject' }
+        fills:
+          type: array
+          items: { type: object, additionalProperties: true }
+        transfers:
+          type: array
+          items: { type: object, additionalProperties: true }
+        block_height:
+          $ref: '#/components/schemas/Height'
+      additionalProperties: true
+
+    # ---------- Resource types ----------
+
+    PerpetualMarket:
+      type: object
+      description: |
+        Perpetual market metadata. See
+        https://docs.dydx.xyz/types/perpetual_market for the full field list.
+      properties:
+        clobPairId: { type: string }
+        ticker: { type: string }
+        status: { type: string }
+        oraclePrice: { type: string }
+        priceChange24H: { type: string }
+        volume24H: { type: string }
+        trades24H: { type: integer }
+        nextFundingRate: { type: string }
+        initialMarginFraction: { type: string }
+        maintenanceMarginFraction: { type: string }
+        openInterest: { type: string }
+        atomicResolution: { type: integer }
+        quantumConversionExponent: { type: integer }
+        tickSize: { type: string }
+        stepSize: { type: string }
+        stepBaseQuantums: { type: integer }
+        subticksPerTick: { type: integer }
+        marketType: { type: string }
+        openInterestLowerCap: { type: string }
+        openInterestUpperCap: { type: string }
+        baseOpenInterest: { type: string }
+      additionalProperties: true
+
+    TradeResponseObject:
+      type: object
+      description: |
+        Single trade record. See
+        https://docs.dydx.xyz/types/trade_response_object.
+      properties:
+        id: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        size: { type: string }
+        price: { type: string }
+        type: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdAtHeight: { type: string }
+      additionalProperties: true
+
+    OrderbookResponsePriceLevel:
+      type: object
+      description: |
+        Single orderbook price level. See
+        https://docs.dydx.xyz/types/orderbook_response_price_level.
+      properties:
+        price: { type: string }
+        size: { type: string }
+      additionalProperties: true
+
+    SubaccountMessageObject:
+      type: object
+      description: |
+        Subaccount state snapshot. See
+        https://docs.dydx.xyz/types/subaccount_message_object.
+      properties:
+        address: { type: string }
+        subaccountNumber: { type: integer }
+        equity: { type: string }
+        freeCollateral: { type: string }
+        marginEnabled: { type: boolean }
+        updatedAtHeight: { type: string }
+        latestProcessedBlockHeight: { type: string }
+        openPerpetualPositions:
+          type: object
+          additionalProperties: { type: object, additionalProperties: true }
+        assetPositions:
+          type: object
+          additionalProperties: { type: object, additionalProperties: true }
+      additionalProperties: true
+
+    OrderMessageObject:
+      type: object
+      description: |
+        Order delta as delivered over the v4_subaccounts /
+        v4_parent_subaccounts channels.
+      properties:
+        id: { type: string }
+        subaccountId: { type: string }
+        clientId: { type: string }
+        clobPairId: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        size: { type: string }
+        ticker: { type: string }
+        price: { type: string }
+        status: { type: string }
+        type: { type: string }
+        timeInForce: { type: string }
+        postOnly: { type: boolean }
+        reduceOnly: { type: boolean }
+        orderFlags: { type: string }
+        goodTilBlock: { type: string }
+        goodTilBlockTime: { type: string }
+        createdAtHeight: { type: string }
+        clientMetadata: { type: string }
+        triggerPrice: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedAtHeight: { type: string }
+        totalFilled: { type: string }
+        totalOptimisticFilled: { type: string }
+      additionalProperties: true
+
+    CandleResponseObject:
+      type: object
+      description: |
+        OHLCV candle. See
+        https://docs.dydx.xyz/types/candle_response_object.
+      properties:
+        startedAt: { type: string, format: date-time }
+        ticker: { type: string }
+        resolution: { $ref: '#/components/schemas/CandlesResolution' }
+        low: { type: string }
+        high: { type: string }
+        open: { type: string }
+        close: { type: string }
+        baseTokenVolume: { type: string }
+        usdVolume: { type: string }
+        trades: { type: integer }
+        startingOpenInterest: { type: string }
+        orderbookMidPriceOpen: { type: string }
+        orderbookMidPriceClose: { type: string }
+      additionalProperties: true
+
+    CandlesResolution:
+      type: string
+      enum: ['1MIN', '5MINS', '15MINS', '30MINS', '1HOUR', '4HOURS', '1DAY']
+      description: Candle resolution accepted by the v4_candles channel.
+
+    ParentSubaccountResponseObject:
+      type: object
+      description: |
+        Rolled-up parent subaccount aggregating child subaccounts 0-127.
+      properties:
+        address: { type: string }
+        parentSubaccountNumber: { type: integer }
+        equity: { type: string }
+        freeCollateral: { type: string }
+        childSubaccounts:
+          type: array
+          items: { type: object, additionalProperties: true }
+      additionalProperties: true
+
+    HeightResponse:
+      type: object
+      description: |
+        Latest block height observed by the Indexer. See
+        https://docs.dydx.xyz/types/height_response.
+      properties:
+        height: { type: string }
+        time: { type: string, format: date-time }
+      additionalProperties: true
+
+    Height:
+      type: string
+      description: Cosmos block height as a decimal string.

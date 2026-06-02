@@ -4,7 +4,7 @@ description: "Decentralized cryptocurrency exchange"
 url: https://docs.dydx.exchange/
 specificationVersion: '0.20'
 created: '2026-05-28'
-modified: '2026-05-28'
+modified: '2026-05-29'
 x-source: public-apis/public-apis
 x-category: "Cryptocurrency"
 x-tier: 3
@@ -22,6 +22,8 @@ apis:
     properties:
       - type: Documentation
         url: https://docs.dydx.exchange/
+      - type: AsyncAPI
+        url: asyncapi/dydx-asyncapi.yml
 common:
   - type: Website
     url: https://docs.dydx.exchange/
