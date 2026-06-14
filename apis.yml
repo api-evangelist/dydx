@@ -1,34 +1,36 @@
 aid: dydx
 name: dYdX
-description: "Decentralized cryptocurrency exchange"
+description: Decentralized cryptocurrency exchange
 url: https://docs.dydx.exchange/
 specificationVersion: '0.20'
 created: '2026-05-28'
 modified: '2026-05-29'
 x-source: public-apis/public-apis
-x-category: "Cryptocurrency"
+x-category: Cryptocurrency
 x-tier: 3
 x-tier-reason: bulk-registered-from-public-apis
 tags:
-  - Cryptocurrency
-  - Public APIs
+- Cryptocurrency
+- Public APIs
 apis:
-  - name: dYdX
-    description: "Decentralized cryptocurrency exchange"
-    humanURL: https://docs.dydx.exchange/
-    baseURL: https://docs.dydx.exchange/
-    tags:
-      - Cryptocurrency
-    properties:
-      - type: Documentation
-        url: https://docs.dydx.exchange/
-      - type: AsyncAPI
-        url: asyncapi/dydx-asyncapi.yml
-common:
-  - type: Website
+- name: dYdX
+  description: Decentralized cryptocurrency exchange
+  humanURL: https://docs.dydx.exchange/
+  baseURL: https://docs.dydx.exchange/
+  tags:
+  - Cryptocurrency
+  properties:
+  - type: Documentation
     url: https://docs.dydx.exchange/
-  - type: PublicAPIsListing
-    url: https://github.com/public-apis/public-apis
+  - type: AsyncAPI
+    url: asyncapi/dydx-asyncapi.yml
+  - url: graphql/dydx-graphql.md
+    type: GraphQL
+common:
+- type: Website
+  url: https://docs.dydx.exchange/
+- type: PublicAPIsListing
+  url: https://github.com/public-apis/public-apis
 maintainers:
-  - FN: Kin Lane
-    email: kin@apievangelist.com
+- FN: Kin Lane
+  email: kin@apievangelist.com

@@ -1,0 +1,589 @@
+"""
+dYdX v4 Indexer GraphQL Schema
+Derived from the open-source dYdX v4-chain indexer type definitions.
+Source: https://github.com/dydxprotocol/v4-chain/tree/main/indexer/packages/postgres/src/types
+Endpoint: https://indexer.dydx.trade/graphql
+"""
+
+# ─── Scalars ────────────────────────────────────────────────────────────────
+
+"""ISO 8601 datetime string"""
+scalar IsoString
+
+"""Arbitrary-precision numeric string"""
+scalar Decimal
+
+"""Hex-encoded binary event identifier"""
+scalar EventId
+
+# ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum PerpetualMarketStatus {
+  ACTIVE
+  PAUSED
+  CANCEL_ONLY
+  POST_ONLY
+  INITIALIZING
+  FINAL_SETTLEMENT
+}
+
+enum PerpetualMarketType {
+  CROSS
+  ISOLATED
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  OPEN
+  FILLED
+  CANCELED
+  BEST_EFFORT_CANCELED
+  UNTRIGGERED
+  ERROR
+}
+
+enum OrderType {
+  LIMIT
+  MARKET
+  STOP_LIMIT
+  STOP_MARKET
+  TRAILING_STOP
+  TAKE_PROFIT
+  TAKE_PROFIT_MARKET
+  TWAP
+  TWAP_SUBORDER
+}
+
+enum TimeInForce {
+  """Good-Til-Time: resting maker order with expiry"""
+  GTT
+  """Fill-Or-Kill: must fill completely or cancel"""
+  FOK
+  """Immediate-Or-Cancel: fill against book or cancel remainder"""
+  IOC
+  """Post-Only: placed as maker order only"""
+  POST_ONLY
+}
+
+enum PositionSide {
+  LONG
+  SHORT
+}
+
+enum PerpetualPositionStatus {
+  OPEN
+  CLOSED
+  LIQUIDATED
+}
+
+enum FillType {
+  LIMIT
+  LIQUIDATED
+  LIQUIDATION
+  DELEVERAGED
+  OFFSETTING
+  TWAP_SUBORDER
+}
+
+enum Liquidity {
+  TAKER
+  MAKER
+}
+
+enum TradeType {
+  LIMIT
+  LIQUIDATED
+  DELEVERAGED
+  TWAP_SUBORDER
+}
+
+enum TransferType {
+  TRANSFER_IN
+  TRANSFER_OUT
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum CandleResolution {
+  ONE_MINUTE
+  FIVE_MINUTES
+  FIFTEEN_MINUTES
+  THIRTY_MINUTES
+  ONE_HOUR
+  FOUR_HOURS
+  ONE_DAY
+}
+
+enum PnlTickInterval {
+  hour
+  day
+}
+
+# ─── Core Types ──────────────────────────────────────────────────────────────
+
+"""
+A price oracle market. Tracks the oracle price for an asset pair and
+feeds into perpetual market margin calculations.
+"""
+type Market {
+  id: Int!
+  """Trading pair symbol e.g. BTC-USD"""
+  pair: String!
+  """Price exponent (negative = decimal places)"""
+  exponent: Int!
+  """Minimum price change in parts-per-million"""
+  minPriceChangePpm: Int!
+  """Latest oracle price (string for precision)"""
+  oraclePrice: Decimal
+}
+
+"""
+A perpetual market (e.g. BTC-PERP). Central entity for all trading activity.
+"""
+type PerpetualMarket {
+  id: String!
+  """CLOB pair identifier used on-chain"""
+  clobPairId: String!
+  """Human-readable ticker e.g. BTC-USD"""
+  ticker: String!
+  marketId: Int!
+  status: PerpetualMarketStatus!
+  priceChange24H: Decimal!
+  volume24H: Decimal!
+  trades24H: Int!
+  nextFundingRate: Decimal!
+  openInterest: Decimal!
+  """Exponent for quantum to full-unit conversion"""
+  quantumConversionExponent: Int!
+  """Smallest position size exponent"""
+  atomicResolution: Int!
+  """Minimum price increment in sub-ticks"""
+  subticksPerTick: Int!
+  """Minimum order size in base quantums"""
+  stepBaseQuantums: Int!
+  liquidityTierId: Int!
+  marketType: PerpetualMarketType!
+  baseOpenInterest: Decimal!
+  """Default 1-hour funding rate"""
+  defaultFundingRate1H: Decimal!
+
+  liquidityTier: LiquidityTier
+  market: Market
+  candles(resolution: CandleResolution!, limit: Int, fromISO: IsoString, toISO: IsoString): [Candle!]!
+  orderbook: Orderbook
+  trades(limit: Int, createdBeforeOrAtHeight: String, page: Int): [Trade!]!
+  historicalFunding(effectiveBeforeOrAtHeight: String, effectiveBeforeOrAt: IsoString, limit: Int): [FundingIndexUpdate!]!
+}
+
+"""
+Liquidity tier configuration defining margin requirements for a perpetual market.
+"""
+type LiquidityTier {
+  id: Int!
+  name: String!
+  """Initial margin fraction in parts-per-million"""
+  initialMarginPpm: Decimal!
+  """Maintenance fraction of initial margin in parts-per-million"""
+  maintenanceFractionPpm: Decimal!
+  openInterestLowerCap: Decimal
+  openInterestUpperCap: Decimal
+}
+
+"""
+An on-chain asset (e.g. USDC).
+"""
+type Asset {
+  id: String!
+  symbol: String!
+  """Smallest unit exponent (negative = decimal places)"""
+  atomicResolution: Int!
+  hasMarket: Boolean!
+  marketId: Int
+  market: Market
+}
+
+"""
+A dYdX subaccount. Wallets can have multiple numbered subaccounts.
+Address follows bech32 dydx1... format.
+"""
+type Subaccount {
+  id: String!
+  address: String!
+  subaccountNumber: Int!
+  updatedAt: IsoString!
+  updatedAtHeight: String!
+
+  perpetualPositions(status: PerpetualPositionStatus, limit: Int): [PerpetualPosition!]!
+  assetPositions: [AssetPosition!]!
+  orders(side: OrderSide, type: OrderType, status: [OrderStatus!], limit: Int, goodTilBlockBeforeOrAt: String): [Order!]!
+  fills(createdBeforeOrAtHeight: String, page: Int, limit: Int): [Fill!]!
+  transfers(createdBeforeOrAtHeight: String, page: Int, limit: Int): [Transfer!]!
+  historicalPnl(createdBeforeOrAtHeight: String, createdOnOrAfterHeight: String, limit: Int): [PnlTick!]!
+}
+
+"""
+An open or historical perpetual position held by a subaccount.
+"""
+type PerpetualPosition {
+  id: String!
+  subaccountId: String!
+  perpetualId: String!
+  side: PositionSide!
+  status: PerpetualPositionStatus!
+  size: Decimal!
+  maxSize: Decimal!
+  sumOpen: Decimal
+  sumClose: Decimal
+  entryPrice: Decimal
+  exitPrice: Decimal
+  createdAt: IsoString!
+  createdAtHeight: String!
+  closedAt: IsoString
+  closedAtHeight: String
+  settledFunding: Decimal!
+  totalRealizedPnl: Decimal
+
+  subaccount: Subaccount!
+  perpetualMarket: PerpetualMarket!
+}
+
+"""
+A position in a collateral asset (typically USDC) within a subaccount.
+"""
+type AssetPosition {
+  id: String!
+  subaccountId: String!
+  assetId: String!
+  size: Decimal!
+  isLong: Boolean!
+
+  subaccount: Subaccount!
+  asset: Asset!
+}
+
+"""
+An order placed by a subaccount on a perpetual market.
+"""
+type Order {
+  id: String!
+  subaccountId: String!
+  clientId: String!
+  clobPairId: String!
+  side: OrderSide!
+  size: Decimal!
+  totalFilled: Decimal!
+  price: Decimal!
+  type: OrderType!
+  status: OrderStatus!
+  timeInForce: TimeInForce!
+  reduceOnly: Boolean!
+  orderFlags: String!
+  goodTilBlock: String
+  goodTilBlockTime: IsoString
+  createdAtHeight: String
+  createdAt: IsoString
+  updatedAt: IsoString!
+  updatedAtHeight: String!
+  clientMetadata: String!
+  triggerPrice: Decimal
+  builderAddress: String
+  feePpm: String
+  orderRouterAddress: String
+  """TWAP duration"""
+  duration: String
+  """TWAP interval"""
+  interval: String
+  priceTolerance: Decimal
+
+  subaccount: Subaccount!
+  perpetualMarket: PerpetualMarket!
+  fills: [Fill!]!
+}
+
+"""
+A trade fill resulting from an order match.
+"""
+type Fill {
+  id: String!
+  subaccountId: String!
+  side: OrderSide!
+  liquidity: Liquidity!
+  type: FillType!
+  clobPairId: String!
+  orderId: String
+  size: Decimal!
+  price: Decimal!
+  quoteAmount: Decimal!
+  eventId: EventId!
+  transactionHash: String!
+  createdAt: IsoString!
+  createdAtHeight: String!
+  clientMetadata: String
+  fee: Decimal!
+  affiliateRevShare: Decimal!
+  builderAddress: String
+  builderFee: Decimal
+
+  subaccount: Subaccount!
+  order: Order
+  perpetualMarket: PerpetualMarket!
+}
+
+"""
+An aggregated public trade (taker perspective) on a perpetual market.
+"""
+type Trade {
+  id: String!
+  side: OrderSide!
+  size: Decimal!
+  price: Decimal!
+  type: TradeType!
+  createdAt: IsoString!
+  createdAtHeight: String!
+}
+
+"""
+A transfer of assets between subaccounts or wallet addresses.
+"""
+type Transfer {
+  id: String!
+  senderSubaccountId: String
+  recipientSubaccountId: String
+  senderWalletAddress: String
+  recipientWalletAddress: String
+  assetId: String!
+  size: Decimal!
+  eventId: EventId!
+  transactionHash: String!
+  createdAt: IsoString!
+  createdAtHeight: String!
+
+  senderSubaccount: Subaccount
+  recipientSubaccount: Subaccount
+  asset: Asset!
+}
+
+"""
+OHLCV candlestick data for a perpetual market.
+"""
+type Candle {
+  id: String!
+  startedAt: IsoString!
+  ticker: String!
+  resolution: CandleResolution!
+  low: Decimal!
+  high: Decimal!
+  open: Decimal!
+  close: Decimal!
+  baseTokenVolume: Decimal!
+  usdVolume: Decimal!
+  trades: Int!
+  startingOpenInterest: Decimal!
+  orderbookMidPriceOpen: Decimal
+  orderbookMidPriceClose: Decimal
+
+  perpetualMarket: PerpetualMarket!
+}
+
+"""
+Oracle price record for a market at a specific block.
+"""
+type OraclePrice {
+  id: String!
+  marketId: Int!
+  price: Decimal!
+  effectiveAt: IsoString!
+  effectiveAtHeight: String!
+
+  market: Market!
+}
+
+"""
+Hourly funding rate index update for a perpetual market.
+"""
+type FundingIndexUpdate {
+  id: String!
+  perpetualId: String!
+  eventId: EventId!
+  rate: Decimal!
+  oraclePrice: Decimal!
+  fundingIndex: Decimal!
+  effectiveAt: IsoString!
+  effectiveAtHeight: String!
+
+  perpetualMarket: PerpetualMarket!
+}
+
+"""
+Historical equity and PnL snapshot for a subaccount.
+"""
+type PnlTick {
+  id: String!
+  subaccountId: String!
+  equity: Decimal!
+  totalPnl: Decimal!
+  netTransfers: Decimal!
+  createdAt: IsoString!
+  blockHeight: String!
+  blockTime: IsoString!
+
+  subaccount: Subaccount!
+}
+
+"""
+A level in the orderbook for a perpetual market.
+"""
+type OrderbookLevel {
+  price: Decimal!
+  size: Decimal!
+}
+
+"""
+Full orderbook snapshot for a perpetual market.
+"""
+type Orderbook {
+  ticker: String!
+  bids: [OrderbookLevel!]!
+  asks: [OrderbookLevel!]!
+}
+
+"""
+A finalized block on dYdX Chain.
+"""
+type Block {
+  blockHeight: String!
+  time: IsoString!
+}
+
+"""
+Current chain time and block height.
+"""
+type Time {
+  iso: IsoString!
+  epoch: Float!
+}
+
+# ─── Query Root ──────────────────────────────────────────────────────────────
+
+type Query {
+  """List all perpetual markets or filter by status"""
+  perpetualMarkets(status: PerpetualMarketStatus, limit: Int): [PerpetualMarket!]!
+
+  """Get a single perpetual market by ticker"""
+  perpetualMarket(ticker: String!): PerpetualMarket
+
+  """Get orderbook for a perpetual market"""
+  orderbook(ticker: String!): Orderbook
+
+  """Get recent trades for a perpetual market"""
+  trades(
+    ticker: String!
+    limit: Int
+    createdBeforeOrAtHeight: String
+    page: Int
+  ): [Trade!]!
+
+  """Get candles for a perpetual market"""
+  candles(
+    ticker: String!
+    resolution: CandleResolution!
+    limit: Int
+    fromISO: IsoString
+    toISO: IsoString
+  ): [Candle!]!
+
+  """Get subaccount by address and subaccount number"""
+  subaccount(address: String!, subaccountNumber: Int!): Subaccount
+
+  """Get all subaccounts for a wallet address"""
+  subaccounts(address: String!): [Subaccount!]!
+
+  """Get perpetual positions for a subaccount"""
+  perpetualPositions(
+    address: String!
+    subaccountNumber: Int!
+    status: PerpetualPositionStatus
+    limit: Int
+    createdBeforeOrAtHeight: String
+  ): [PerpetualPosition!]!
+
+  """Get asset positions for a subaccount"""
+  assetPositions(
+    address: String!
+    subaccountNumber: Int!
+  ): [AssetPosition!]!
+
+  """Get orders for a subaccount"""
+  orders(
+    address: String!
+    subaccountNumber: Int!
+    side: OrderSide
+    type: OrderType
+    status: [OrderStatus!]
+    limit: Int
+    goodTilBlockBeforeOrAt: String
+    ticker: String
+  ): [Order!]!
+
+  """Get a single order by ID"""
+  order(orderId: String!): Order
+
+  """Get fills for a subaccount"""
+  fills(
+    address: String!
+    subaccountNumber: Int!
+    market: String
+    marketType: PerpetualMarketType
+    limit: Int
+    createdBeforeOrAtHeight: String
+    page: Int
+  ): [Fill!]!
+
+  """Get transfers for a subaccount"""
+  transfers(
+    address: String!
+    subaccountNumber: Int!
+    limit: Int
+    createdBeforeOrAtHeight: String
+    page: Int
+  ): [Transfer!]!
+
+  """Get historical funding rates for a perpetual market"""
+  historicalFunding(
+    ticker: String!
+    effectiveBeforeOrAtHeight: String
+    effectiveBeforeOrAt: IsoString
+    limit: Int
+  ): [FundingIndexUpdate!]!
+
+  """Get historical PnL ticks for a subaccount"""
+  historicalPnl(
+    address: String!
+    subaccountNumber: Int!
+    createdBeforeOrAtHeight: String
+    createdOnOrAfterHeight: String
+    limit: Int
+  ): [PnlTick!]!
+
+  """Get all assets"""
+  assets: [Asset!]!
+
+  """Get a single asset by ID"""
+  asset(assetId: String!): Asset
+
+  """Get liquidity tier configurations"""
+  liquidityTiers: [LiquidityTier!]!
+
+  """Get current time and block height"""
+  time: Time!
+
+  """Get the latest indexed block"""
+  height: Block!
+
+  """Get oracle price history for a market"""
+  oraclePrices(marketId: Int!, limit: Int): [OraclePrice!]!
+}
