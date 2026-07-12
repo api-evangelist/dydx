@@ -27,10 +27,14 @@ apis:
   - url: graphql/dydx-graphql.md
     type: GraphQL
 common:
+- type: DomainSecurity
+  url: security/dydx-domain-security.yml
 - type: Website
   url: https://docs.dydx.exchange/
 - type: PublicAPIsListing
   url: https://github.com/public-apis/public-apis
+- url: https://dydx.xyz/blog
+  type: Blog
 maintainers:
 - FN: Kin Lane
   email: kin@apievangelist.com
