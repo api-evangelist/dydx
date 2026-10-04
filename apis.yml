@@ -35,11 +35,11 @@ x-tier-reason: bulk-registered-from-public-apis
 tags:
 - Cryptocurrency
 - Public APIs
+- Real-Time
 apis:
 - name: dYdX
   description: Decentralized cryptocurrency exchange
   humanURL: https://docs.dydx.exchange/
-  baseURL: https://docs.dydx.exchange/
   tags:
   - Cryptocurrency
   properties:
